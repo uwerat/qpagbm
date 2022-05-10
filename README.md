@@ -5,36 +5,39 @@
 
 It is supposed to work with all Qt versions >= 5.0
 
-This platform allows postprocessing of the framebuffer without displying anything
-on physical screens. The anticipated use cases are remote desktop solutions,
+This platform allows running OpenGL applications without displaying anything
+on physical screens. The anticipated use cases will postprocess the frames:
 
 - remote desktop solutions ( f.e https://github.com/uwerat/vnc-eglfs )
 - "screen" recorder
 - test/development scenarios
 - ...
 
-My own motivation for this platform is related to the EGLFS/VNC server 
+My own motivation for this platform plugin is related to the EGLFS/VNC server 
 project ( https://github.com/uwerat/vnc-eglfs ).
 
 # Qt/Quick
 
-For a Qt/Quick window code might look like this
+For a Qt/Quick code might look like this
 
 ```
-class Streamer : public QObject
+class FrameHandler : public QObject
 {
     public:
-        Streamer( QQuickWindow* window )
+        FrameHandler( QQuickWindow* window )
             : m_window( window )
         {
             connect( window, &QQuickWindow::frameSwapped,
-                     this, &Streamer::grabWindow, Qt::DirectConnection );
+                     this, &FrameHandler::grabWindow, Qt::DirectConnection );
         }
 
     private:
         void grabWindow()
         {
-            // we are on the scene graph thread !
+            /*
+                Still on the scene graph thread, ready to postprocess the frame.
+                Asn an example the code below grabs it into an image.
+             */
 
             extern QImage qt_gl_read_framebuffer(
                 const QSize&, bool alpha_format, bool include_alpha );
