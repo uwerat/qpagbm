@@ -3,12 +3,12 @@
 - https://doc.qt.io/qt-6/qpa.html
 - https://www.khronos.org/registry/EGL/extensions/MESA/EGL_MESA_platform_gbm.txt
 
-It is supposed to work with Qt versions >= 5.x in UNIX-oid environments, where
-you find an implementation of the Mesa Generic Buffer Management ( gbm ),
+It is supposed to work with Qt versions >= 5.x in UNIXoid environments, where
+you find an implementation of the Mesa Generic Buffer Management ( gbm ).
 
 This platform allows running OpenGL applications without displaying anything
-on physical screens. In this respect it is similar to the "offscreen" platform, but
-wthout being limited to OpenGL/X11.
+on physical screens. In this respect it is similar to the "offscreen" platform plugin,
+but without being limited to OpenGL/X11.
 
 The anticipated use cases will postprocess the frames:
 
@@ -22,7 +22,7 @@ project ( https://github.com/uwerat/vnc-eglfs ).
 
 # Qt/Quick
 
-For a Qt/Quick code might look like this
+For Qt/Quick code might look like this
 
 ```
 class FrameHandler : public QObject
