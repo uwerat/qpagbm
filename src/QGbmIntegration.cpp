@@ -1,25 +1,24 @@
 #include "QGbmIntegration.h"
 #include "QGbmScreen.h"
 #include "QGbmWindow.h"
-#include "QGbmFunctions.h"
+#include "QGbmOffscreenSurface.h"
+#include "QGbmPlatform.h"
 
 #include <qscreen.h>
-
 #include <qdebug.h>
+
+#include <private/qguiapplication_p.h>
 
 #include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
 #include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
 #include <QtEglSupport/private/qeglplatformcontext_p.h>
-#include <QtDeviceDiscoverySupport/private/qdevicediscovery_p.h>
 #include <QtPlatformHeaders/qeglnativecontext.h>
-#include <QtCore/private/qcore_unix_p.h>
-#include <QtEglSupport/private/qeglconvenience_p.h>
 
 #include <qpa/qwindowsysteminterface.h>
 #include <qpa/qplatforminputcontextfactory_p.h>
+#include <qpa/qplatformoffscreensurface.h>
 #include <private/qinputdevicemanager_p_p.h>
 
-#include <gbm.h>
 
 namespace
 {
@@ -37,13 +36,11 @@ namespace
 
         EGLSurface eglSurfaceForPlatformSurface( QPlatformSurface* surface ) override
         {
-            if( auto window = dynamic_cast< QPlatformWindow* >( surface ) )
-            {
-                if( auto screen = dynamic_cast< QGbmScreen* >( window->screen() ) )
-                {
-                    return screen->eglSurface();
-                }
-            }
+            if( auto window = dynamic_cast< QGbmWindow* >( surface ) )
+                return window->eglSurface();
+
+            if( auto offscreenSurface = dynamic_cast< QGbmOffscreenSurface* >( surface ) )
+                return offscreenSurface->eglSurface();
 
             return nullptr;
         }
@@ -58,6 +55,21 @@ namespace
         {
             qWarning() << "EGL/GBM does not support Pbuffers";
         }
+
+        void initialize() override
+        {
+            Inherited::initialize();
+        }
+
+        bool makeCurrent( QPlatformSurface* surface ) override
+        {
+            return Inherited::makeCurrent( surface );
+        }
+
+        void doneCurrent() override
+        {
+            Inherited::doneCurrent();
+        }
     };
 }
 
@@ -68,10 +80,6 @@ class QGbmIntegration::PrivateData
 
     QGbmScreen* screen = nullptr;
     QPlatformInputContext* inputContext = nullptr;
-
-    int fd = -1;
-    gbm_device* gbmDevice = nullptr;
-    EGLDisplay display = EGL_NO_DISPLAY;
 };
 
 QGbmIntegration::QGbmIntegration()
@@ -83,88 +91,22 @@ QGbmIntegration::~QGbmIntegration()
 {
 }
 
-void QGbmIntegration::initEGL()
-{
-    auto scanner = QDeviceDiscovery::create( QDeviceDiscovery::Device_VideoMask );
-
-    const auto devices = scanner->scanConnectedDevices();
-#if 1
-    qDebug() << "Found the following video devices:" << devices;
-#endif
-    scanner->deleteLater();
-
-    // /dev/dri/card0
-    auto path = devices.first();
-
-    m_data->fd = qt_safe_open( path.toLocal8Bit().constData(), O_RDWR | O_CLOEXEC );
-
-    if( m_data->fd == -1 )
-    {
-        qErrnoWarning( "Could not open DRM device %s", qPrintable( path ) );
-        return;
-    }
-
-    m_data->gbmDevice = gbm_create_device( m_data->fd );
-
-    if( m_data->gbmDevice == nullptr )
-    {
-        qErrnoWarning( "Could not create GBM device" );
-        qt_safe_close( m_data->fd );
-        m_data->fd = -1;
-    }
-
-    gbm_device* gbmDevice = nullptr;
-
-#if 1
-    // nullptr in case of EGLFS ??
-    gbmDevice = m_data->gbmDevice;
-#endif
-
-    m_data->display = eglGetDisplay( reinterpret_cast< EGLNativeDisplayType >( gbmDevice ) );
-
-    if( m_data->display == EGL_NO_DISPLAY )
-    {
-        qFatal( "Could not open egl display" );
-    }
-
-    EGLint major, minor;
-
-    if( !eglInitialize( m_data->display, &major, &minor ) )
-    {
-        qFatal( "Could not initialize egl display" );
-    }
-}
-
 void QGbmIntegration::initialize()
 {
-    initEGL();
-
     m_data->inputContext = QPlatformInputContextFactory::create();
 
-    auto manager = QInputDeviceManagerPrivate::get( QGbm::inputDeviceManager() );
+    auto manager = QInputDeviceManagerPrivate::get(
+        QGuiApplicationPrivate::inputDeviceManager() );
 
     manager->setDeviceCount( QInputDeviceManager::DeviceTypePointer, 1 );
     manager->setDeviceCount( QInputDeviceManager::DeviceTypeKeyboard, 1 );
 
-    m_data->screen = new QGbmScreen( m_data->gbmDevice, m_data->display,
-        "offscreen", QSize( 2000, 2000 ) );
-
+    m_data->screen = new QGbmScreen( "offscreen", QSize( 2000, 2000 ) );
     QWindowSystemInterface::handleScreenAdded( m_data->screen, true );
 }
 
 void QGbmIntegration::destroy()
 {
-    if( m_data->gbmDevice )
-    {
-        gbm_device_destroy( m_data->gbmDevice );
-        m_data->gbmDevice = nullptr;
-    }
-
-    if( m_data->fd != -1 )
-    {
-        qt_safe_close( m_data->fd );
-        m_data->fd = -1;
-    }
 }
 
 QPlatformOpenGLContext* QGbmIntegration::createPlatformOpenGLContext(
@@ -172,22 +114,21 @@ QPlatformOpenGLContext* QGbmIntegration::createPlatformOpenGLContext(
 {
     PlatformContext* platformContext;
 
+    auto eglDisplay = QGbm::eglDisplay();
+    auto eglConfig = QGbm::eglConfig();
+
     if( context->nativeHandle().isNull() )
     {
-        auto screen = dynamic_cast< const QGbmScreen* >( context->screen()->handle() );
-        auto eglConfig = screen->eglConfig();
-
         platformContext = new PlatformContext(
             context->format(), context->shareHandle(),
-            m_data->display, &eglConfig, QVariant() );
+            eglDisplay, &eglConfig, QVariant() );
 
-        const QEGLNativeContext nativeContext( platformContext->eglContext(), m_data->display );
-        context->setNativeHandle( QVariant::fromValue< QEGLNativeContext >( nativeContext ) );
+        context->setNativeHandle( QGbm::nativeContextHandle( platformContext ) );
     }
     else
     {
         platformContext = new PlatformContext( context->format(), context->shareHandle(),
-            m_data->display, nullptr, context->nativeHandle() );
+            eglDisplay, nullptr, context->nativeHandle() );
     }
 
     return platformContext;
@@ -211,14 +152,20 @@ bool QGbmIntegration::hasCapability( QPlatformIntegration::Capability cap ) cons
     }
 }
 
+QPlatformBackingStore* QGbmIntegration::createPlatformBackingStore( QWindow* ) const
+{
+    return nullptr;
+}
+
 QPlatformWindow* QGbmIntegration::createPlatformWindow( QWindow* window ) const
 {
     return new QGbmWindow( window );
 }
 
-QPlatformBackingStore* QGbmIntegration::createPlatformBackingStore( QWindow* ) const
+QPlatformOffscreenSurface* QGbmIntegration::createPlatformOffscreenSurface(
+    QOffscreenSurface* surface ) const
 {
-    return nullptr;
+    return new QGbmOffscreenSurface( surface );
 }
 
 QAbstractEventDispatcher* QGbmIntegration::createEventDispatcher() const

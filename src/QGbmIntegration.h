@@ -15,6 +15,8 @@ class QGbmIntegration : public QPlatformIntegration
     bool hasCapability( QPlatformIntegration::Capability ) const override;
 
     QPlatformWindow* createPlatformWindow( QWindow* ) const override;
+    QPlatformOffscreenSurface* createPlatformOffscreenSurface( QOffscreenSurface* ) const;
+
     QPlatformBackingStore* createPlatformBackingStore( QWindow* ) const override;
 
     QPlatformOpenGLContext* createPlatformOpenGLContext( QOpenGLContext* ) const override;
@@ -24,8 +26,6 @@ class QGbmIntegration : public QPlatformIntegration
     QPlatformInputContext* inputContext() const override;
 
   private:
-    void initEGL();
-
     class PrivateData;
     std::unique_ptr< PrivateData > m_data;
 };

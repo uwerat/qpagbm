@@ -26,15 +26,19 @@ DESTDIR = plugins/platforms
 LIBS += -lgbm
 
 HEADERS += \
-    QGbmFunctions.h \
+    QGbmPlatform.h \
+    QGbmSurface.h \
     QGbmScreen.h \
     QGbmWindow.h \
+    QGbmOffscreenSurface.h \
     QGbmIntegration.h \
 
 SOURCES += \
-    QGbmFunctions.cpp \
+    QGbmPlatform.cpp \
+    QGbmSurface.cpp \
     QGbmScreen.cpp \
     QGbmWindow.cpp \
+    QGbmOffscreenSurface.cpp \
     QGbmIntegration.cpp \
     QGbmIntegrationPlugin.cpp
 

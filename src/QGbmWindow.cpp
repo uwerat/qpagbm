@@ -1,21 +1,33 @@
+#include "QGbmSurface.h"
 #include "QGbmWindow.h"
+#include "QGbmIntegration.h"
 
-#include <qpa/qplatformscreen.h>
 #include <qpa/qwindowsysteminterface.h>
 
 QGbmWindow::QGbmWindow( QWindow* window )
     : QPlatformWindow( window )
 {
+    const auto screenSize = window->screen()->size();
+
     if( window->windowState() == Qt::WindowFullScreen )
-    {
-        const auto sz = window->screen()->size();
-        Inherited::setGeometry( QRect( 0, 0, sz.width(), sz.height() ) );
-    }
+        Inherited::setGeometry( QRect( QPoint(), screenSize ) );
+
+    m_surface = new QGbmSurface( screenSize );
+}
+
+QGbmWindow::~QGbmWindow()
+{
+    delete m_surface;
+}
+
+QSurfaceFormat QGbmWindow::format() const
+{
+    return m_surface->format();
 }
 
 void QGbmWindow::setGeometry( const QRect& rect )
 {
-    const QRect oldRect = geometry();
+    const auto oldRect = geometry();
 
     if( oldRect != rect )
     {
@@ -39,4 +51,9 @@ qreal QGbmWindow::devicePixelRatio() const
 #else
     return Inherited::devicePixelRatio();
 #endif
+}
+
+void* QGbmWindow::eglSurface() const
+{
+    return m_surface->eglSurface();
 }

@@ -3,10 +3,14 @@
 - https://doc.qt.io/qt-6/qpa.html
 - https://www.khronos.org/registry/EGL/extensions/MESA/EGL_MESA_platform_gbm.txt
 
-It is supposed to work with all Qt versions >= 5.0
+It is supposed to work with Qt versions >= 5.x in UNIX-oid environments, where
+you find an implementation of the Mesa Generic Buffer Management ( gbm ),
 
 This platform allows running OpenGL applications without displaying anything
-on physical screens. The anticipated use cases will postprocess the frames:
+on physical screens. In this respect it is similar to the "offscreen" platform, but
+wthout being limited to OpenGL/X11.
+
+The anticipated use cases will postprocess the frames:
 
 - remote desktop solutions ( f.e https://github.com/uwerat/vnc-eglfs )
 - "screen" recorder
@@ -36,7 +40,7 @@ class FrameHandler : public QObject
         {
             /*
                 Still on the scene graph thread, ready to postprocess the frame.
-                Asn an example the code below grabs it into an image.
+                As an example the code below grabs it into an image.
              */
 
             extern QImage qt_gl_read_framebuffer(
