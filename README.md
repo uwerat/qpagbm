@@ -17,8 +17,19 @@ The anticipated use cases will postprocess the frames:
 - test/development scenarios
 - ...
 
-My own motivation for this platform plugin is related to the EGLFS/VNC server 
-project ( https://github.com/uwerat/vnc-eglfs ).
+My own motivation for this platform plugin is related to the
+[EGLFS/VNC server project]( https://github.com/uwerat/vnc-eglfs ).
+
+There are 2 environment variables, that can be used to configure the plugin
+
+    - GBM_SCREEN_SIZE
+
+      The size of the platform screen. The default setting is 2000x2000
+
+    - GBM_SCALE_WINDOW
+
+      Setting GBM_SCALE_WINDOW to 1/true has an effect on the devicePixelRatio
+      of a windows on a GBM off-screen: "ratio = screen->width() / window->width();"
 
 # Qt/Quick
 
