@@ -5,9 +5,13 @@
 
 #include <QtCore/private/qcore_unix_p.h>
 #include <QtDeviceDiscoverySupport/private/qdevicediscovery_p.h>
-#include <QtEglSupport/private/qeglplatformcontext_p.h>
-#include <QtPlatformHeaders/qeglnativecontext.h>
-#include <QtEglSupport/private/qeglconvenience_p.h>
+
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
+    #include <QtEglSupport/private/qeglconvenience_p.h>
+#else
+    #include <private/qeglplatformcontext_p.h>
+    #include <private/qeglconvenience_p.h>
+#endif
 
 #include <EGL/egl.h>
 #include <gbm.h>

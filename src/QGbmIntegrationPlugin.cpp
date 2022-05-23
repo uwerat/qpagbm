@@ -5,6 +5,7 @@
 
 #include <qpa/qplatformintegrationplugin.h>
 #include <qpa/qplatformintegration.h>
+#include <qpa/qplatformwindow.h>
 #include <qpa/qwindowsysteminterface.h>
 #include <qpa/qplatforminputcontextfactory_p.h>
 #include <qpa/qplatformoffscreensurface.h>
@@ -12,11 +13,17 @@
 #include <private/qguiapplication_p.h>
 #include <private/qinputdevicemanager_p_p.h>
 
-#include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
-#include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
+    #include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
+    #include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
+    #include <QtEglSupport/private/qeglplatformcontext_p.h>
+    #include <QtPlatformHeaders/qeglnativecontext.h>
+#else
+    #include <private/qgenericunixeventdispatcher_p.h>
+    #include <private/qgenericunixfontdatabase_p.h>
+    #include <private/qeglplatformcontext_p.h>
+#endif
 
-#include <QtEglSupport/private/qeglplatformcontext_p.h>
-#include <QtPlatformHeaders/qeglnativecontext.h>
 
 namespace
 {
@@ -115,11 +122,23 @@ namespace
         using Inherited = QEGLPlatformContext;
 
       public:
-        GbmContext( const QOpenGLContext* context, EGLDisplay display, EGLConfig config )
-            : QEGLPlatformContext( context->format(), context->shareHandle(),
-                display, &config, context->nativeHandle(), Flags() )
+#if QT_VERSION < QT_VERSION_CHECK( 6, 0, 0 )
+        GbmContext( QOpenGLContext* ctx, EGLDisplay display, EGLConfig config )
+            : QEGLPlatformContext( ctx->format(), ctx->shareHandle(),
+                display, &config, ctx->nativeHandle() )
+        {
+            if ( ctx->nativeHandle().isNull() )
+            {
+                const QEGLNativeContext nativeContext( this, display );
+                ctx->setNativeHandle( QVariant::fromValue( nativeContext ) );
+            }
+        }
+#else
+        GbmContext( const QOpenGLContext* ctx, EGLDisplay display, EGLConfig config )
+            : QEGLPlatformContext( ctx->format(), ctx->shareHandle(), display, &config )
         {
         }
+#endif
 
         EGLSurface eglSurfaceForPlatformSurface( QPlatformSurface* surface ) override
         {
@@ -176,100 +195,83 @@ namespace
     class GbmIntegration : public QPlatformIntegration
     {
       public:
-        void initialize() override;
-        void destroy() override;
+        void initialize() override
+        {
+            m_inputContext = QPlatformInputContextFactory::create();
 
-        bool hasCapability( QPlatformIntegration::Capability ) const override;
+            auto manager = QInputDeviceManagerPrivate::get(
+                QGuiApplicationPrivate::inputDeviceManager() );
 
-        QPlatformWindow* createPlatformWindow( QWindow* ) const override;
-        QPlatformOffscreenSurface* createPlatformOffscreenSurface( QOffscreenSurface* ) const;
+            manager->setDeviceCount( QInputDeviceManager::DeviceTypePointer, 1 );
+            manager->setDeviceCount( QInputDeviceManager::DeviceTypeKeyboard, 1 );
 
-        QPlatformBackingStore* createPlatformBackingStore( QWindow* ) const override;
+            auto screen = new GbmScreen( "offscreen", QSize( 2000, 2000 ) );
+            QWindowSystemInterface::handleScreenAdded( screen, true );
+        }
 
-        QPlatformOpenGLContext* createPlatformOpenGLContext( QOpenGLContext* ) const override;
-        QAbstractEventDispatcher* createEventDispatcher() const override;
+        void destroy() override
+        {
+        }
 
-        QPlatformFontDatabase* fontDatabase() const override;
-        QPlatformInputContext* inputContext() const override;
+        bool hasCapability( QPlatformIntegration::Capability cap ) const override
+        {
+            switch( cap )
+            {
+                case OpenGL:
+                case ThreadedOpenGL:
+                case RasterGLSurface:
+                case ThreadedPixmaps:
+                    return true;
+
+                case WindowManagement:
+                    return false;
+
+                default:
+                    return QPlatformIntegration::hasCapability( cap );
+            }
+        }
+
+        QPlatformWindow* createPlatformWindow( QWindow* window ) const override
+        {
+            return new GbmWindow( window );
+        }
+
+        QPlatformOffscreenSurface* createPlatformOffscreenSurface(
+            QOffscreenSurface* surface ) const override
+        {
+            return new GbmOffscreenSurface( surface );
+        }
+
+        QPlatformBackingStore* createPlatformBackingStore( QWindow* ) const override
+        {
+            return nullptr;
+        }
+
+        QPlatformOpenGLContext* createPlatformOpenGLContext(
+            QOpenGLContext* context ) const override
+        {
+            return new GbmContext( context, QGbm::eglDisplay(), QGbm::eglConfig() );
+        }
+
+        QAbstractEventDispatcher* createEventDispatcher() const override
+        {
+            return createUnixEventDispatcher();
+        }
+
+        QPlatformFontDatabase* fontDatabase() const override
+        {
+            return &m_fontDatabase;
+        }
+
+        QPlatformInputContext* inputContext() const override
+        {
+            return m_inputContext;
+        }
 
       private:
         mutable QGenericUnixFontDatabase m_fontDatabase;
         QPlatformInputContext* m_inputContext = nullptr;
     };
-
-    void GbmIntegration::initialize()
-    {
-        m_inputContext = QPlatformInputContextFactory::create();
-
-        auto manager = QInputDeviceManagerPrivate::get(
-            QGuiApplicationPrivate::inputDeviceManager() );
-
-        manager->setDeviceCount( QInputDeviceManager::DeviceTypePointer, 1 );
-        manager->setDeviceCount( QInputDeviceManager::DeviceTypeKeyboard, 1 );
-
-        auto screen = new GbmScreen( "offscreen", QSize( 2000, 2000 ) );
-        QWindowSystemInterface::handleScreenAdded( screen, true );
-    }
-
-    void GbmIntegration::destroy()
-    {
-    }
-
-    QPlatformOpenGLContext*
-        GbmIntegration::createPlatformOpenGLContext( QOpenGLContext* context ) const
-    {
-        auto gbmContext = new GbmContext( context, QGbm::eglDisplay(), QGbm::eglConfig() );
-
-        if ( context->nativeHandle().isNull() )
-        {
-            const QEGLNativeContext nativeContext( gbmContext, QGbm::eglDisplay() );
-            context->setNativeHandle( QVariant::fromValue( nativeContext ) );
-        }
-
-        return gbmContext;
-    }
-
-    bool GbmIntegration::hasCapability( QPlatformIntegration::Capability cap ) const
-    {
-        switch( cap )
-        {
-            case OpenGL:
-            case ThreadedOpenGL:
-            case RasterGLSurface:
-            case ThreadedPixmaps:
-                return true;
-
-            case WindowManagement:
-                return false;
-
-            default:
-                return QPlatformIntegration::hasCapability( cap );
-        }
-    }
-
-    QPlatformBackingStore* GbmIntegration::createPlatformBackingStore( QWindow* ) const
-    {
-        return nullptr;
-    }
-
-    QPlatformWindow* GbmIntegration::createPlatformWindow( QWindow* window ) const
-    {
-        return new GbmWindow( window );
-    }
-
-    QPlatformOffscreenSurface* GbmIntegration::createPlatformOffscreenSurface(
-        QOffscreenSurface* surface ) const
-    {
-        return new GbmOffscreenSurface( surface );
-    }
-
-    QAbstractEventDispatcher* GbmIntegration::createEventDispatcher() const
-    {
-        return createUnixEventDispatcher();
-    }
-
-    QPlatformFontDatabase* GbmIntegration::fontDatabase() const { return &m_fontDatabase; }
-    QPlatformInputContext* GbmIntegration::inputContext() const { return m_inputContext; }
 }
 
 namespace
@@ -294,4 +296,3 @@ namespace
 }
 
 #include "QGbmIntegrationPlugin.moc"
-
