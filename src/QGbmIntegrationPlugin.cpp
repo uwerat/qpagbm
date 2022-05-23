@@ -62,6 +62,7 @@ namespace
       public:
         GbmWindow( QWindow* window )
             : QPlatformWindow( window )
+            , m_scaling( qEnvironmentVariableIsSet( "GBM_SCALE_WINDOW" ) )
         {
             const auto sz = window->screen()->size();
 
@@ -98,7 +99,7 @@ namespace
 
         qreal devicePixelRatio() const override
         {
-            if ( m_scaleToScreen )
+            if ( m_scaling )
                 return screen()->geometry().width() / qreal( geometry().width() );
 
             return Inherited::devicePixelRatio();
@@ -111,7 +112,7 @@ namespace
         void* m_gbmSurface = nullptr;
         void* m_eglSurface = nullptr;
 
-        const bool m_scaleToScreen = false;
+        const bool m_scaling;
     };
 }
 
@@ -171,22 +172,29 @@ namespace
         using Inherited = QPlatformScreen;
 
       public:
-        GbmScreen( const QString& name, const QSize& size )
+        GbmScreen( const QString& name )
             : m_name( name )
-            , m_geometry( 0, 0, size.width(), size.height() )
+            , m_size( screenSize() )
         {
         }
 
         QString name() const override { return m_name; }
-        QRect geometry() const override { return m_geometry; }
+        QRect geometry() const override { return QRect( QPoint(), m_size ); }
         int depth() const override { return 32; }
         QImage::Format format() const override { return QImage::Format_RGB32; }
 
-        qreal refreshRate() const override { return Inherited::refreshRate(); }
-
       private:
+        QSize screenSize() const
+        {
+            const auto env = qgetenv( "GBM_SCREEN_SIZE").split('x');
+            if ( env.length() == 2 )
+                return QSize( env[0].toInt(), env[1].toInt() );
+
+            return QSize( 2000, 2000 );
+        }
+
         const QString m_name;
-        const QRect m_geometry;
+        const QSize m_size;
     };
 }
 
@@ -205,7 +213,7 @@ namespace
             manager->setDeviceCount( QInputDeviceManager::DeviceTypePointer, 1 );
             manager->setDeviceCount( QInputDeviceManager::DeviceTypeKeyboard, 1 );
 
-            auto screen = new GbmScreen( "offscreen", QSize( 2000, 2000 ) );
+            auto screen = new GbmScreen( "offscreen" );
             QWindowSystemInterface::handleScreenAdded( screen, true );
         }
 
