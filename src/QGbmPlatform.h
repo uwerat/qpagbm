@@ -1,15 +1,22 @@
 #pragma once
 
-#include <memory>
+#include <qsurfaceformat.h>
 
-class QVariant;
 class QEGLPlatformContext;
 
 namespace QGbm
 {
-    void* gbmDevice();
+    /*
+        egl/gbm and Qt header have conflicts. So we better work with
+        void* handles instead
+     */
     void* eglDisplay();
     void* eglConfig();
 
-    QVariant nativeContextHandle( const QEGLPlatformContext* );
+    QSurfaceFormat surfaceFormat();
+
+    void* createEglSurface( void* gbmSurface );
+    void* createGbmSurface( int width, int height );
+
+    void destroySurfaces( void* gbmSurface, void* eglSurface );
 }

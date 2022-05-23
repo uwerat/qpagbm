@@ -27,19 +27,9 @@ LIBS += -lgbm
 
 HEADERS += \
     QGbmPlatform.h \
-    QGbmSurface.h \
-    QGbmScreen.h \
-    QGbmWindow.h \
-    QGbmOffscreenSurface.h \
-    QGbmIntegration.h \
 
 SOURCES += \
     QGbmPlatform.cpp \
-    QGbmSurface.cpp \
-    QGbmScreen.cpp \
-    QGbmWindow.cpp \
-    QGbmOffscreenSurface.cpp \
-    QGbmIntegration.cpp \
     QGbmIntegrationPlugin.cpp
 
 OTHER_FILES += metadata.json
