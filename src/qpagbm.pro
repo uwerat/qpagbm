@@ -11,8 +11,6 @@ CONFIG += c++11
 CONFIG += pedantic
 
 QT += gui gui-private
-QT += network
-
 QT += devicediscovery_support_private
 
 pedantic {
