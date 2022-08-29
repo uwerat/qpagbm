@@ -28,8 +28,8 @@ There are 2 environment variables, that can be used to configure the plugin
 
     - GBM_SCALE_WINDOW
 
-      Setting GBM_SCALE_WINDOW to 1/true has an effect on the devicePixelRatio
-      of a windows on a GBM off-screen: "ratio = screen->width() / window->width();"
+      Setting GBM_SCALE_WINDOW to 1 or true has an effect on the devicePixelRatio
+      of a window on a GBM off-screen: "ratio = screen->width() / window->width();"
 
 # Qt/Quick
 
@@ -43,11 +43,11 @@ class FrameHandler : public QObject
             : m_window( window )
         {
             connect( window, &QQuickWindow::afterRendering,
-                     this, &FrameHandler::grabWindow, Qt::DirectConnection );
+                     this, &FrameHandler::grabFrame, Qt::DirectConnection );
         }
 
     private:
-        void grabWindow()
+        void grabFrame()
         {
             /*
                 Still on the scene graph thread, ready to postprocess the frame.
