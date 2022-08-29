@@ -42,7 +42,7 @@ class FrameHandler : public QObject
         FrameHandler( QQuickWindow* window )
             : m_window( window )
         {
-            connect( window, &QQuickWindow::frameSwapped,
+            connect( window, &QQuickWindow::afterRendering,
                      this, &FrameHandler::grabWindow, Qt::DirectConnection );
         }
 
