@@ -93,8 +93,13 @@ namespace
         {
             Inherited::requestActivateWindow();
 
+#if QT_VERSION < QT_VERSION_CHECK( 6, 7, 0 )
             QWindowSystemInterface::handleWindowActivated(
                 window(), Qt::OtherFocusReason );
+#else
+            QWindowSystemInterface::handleFocusWindowChanged(
+                window(), Qt::ActiveWindowFocusReason);
+#endif
         }
 
         qreal devicePixelRatio() const override
