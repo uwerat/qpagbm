@@ -10,6 +10,10 @@
 #include <qpa/qplatforminputcontextfactory_p.h>
 #include <qpa/qplatformoffscreensurface.h>
 
+#if QT_VERSION >= QT_VERSION_CHECK( 6, 7, 0 )
+#include <qpa/qplatformnativeinterface.h>
+#endif
+
 #include <private/qguiapplication_p.h>
 #include <private/qinputdevicemanager_p_p.h>
 
@@ -222,6 +226,13 @@ namespace
             QWindowSystemInterface::handleScreenAdded( screen, true );
         }
 
+#if QT_VERSION >= QT_VERSION_CHECK( 6, 7, 0 )
+        QPlatformNativeInterface *nativeInterface() const override
+        {
+            return &m_nativeInterface;
+        }
+#endif
+
         void destroy() override
         {
         }
@@ -283,6 +294,10 @@ namespace
 
       private:
         mutable QGenericUnixFontDatabase m_fontDatabase;
+#if QT_VERSION >= QT_VERSION_CHECK( 6, 7, 0 )
+        mutable QPlatformNativeInterface m_nativeInterface;
+#endif
+
         QPlatformInputContext* m_inputContext = nullptr;
     };
 }
