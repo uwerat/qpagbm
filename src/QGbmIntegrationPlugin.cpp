@@ -10,9 +10,7 @@
 #include <qpa/qplatforminputcontextfactory_p.h>
 #include <qpa/qplatformoffscreensurface.h>
 
-#if QT_VERSION >= QT_VERSION_CHECK( 6, 7, 0 )
 #include <qpa/qplatformnativeinterface.h>
-#endif
 
 #include <private/qguiapplication_p.h>
 #include <private/qinputdevicemanager_p_p.h>
@@ -27,7 +25,6 @@
     #include <private/qgenericunixfontdatabase_p.h>
     #include <private/qeglplatformcontext_p.h>
 #endif
-
 
 namespace
 {
@@ -46,7 +43,7 @@ namespace
             QGbm::destroySurfaces( m_gbmSurface, m_eglSurface );
         }
 
-        QSurfaceFormat format() const override {   return QGbm::surfaceFormat(); }
+        QSurfaceFormat format() const override { return QGbm::surfaceFormat(); }
         bool isValid() const override { return m_eglSurface != nullptr; }
 
         void* eglSurface() const { return m_eglSurface; }
@@ -209,6 +206,79 @@ namespace
 
 namespace
 {
+    class GbmNativeInterface : public QPlatformNativeInterface
+    {
+      public:
+        void* nativeResourceForIntegration(const QByteArray& resource) override
+        {
+            return eglResource( resource );
+        }
+
+        void* nativeResourceForScreen( const QByteArray&, QScreen*) override
+        {
+            return nullptr;
+        }
+
+        void* nativeResourceForWindow(
+            const QByteArray& resource, QWindow* window ) override
+        {
+            const GbmWindow* gbmWindow = nullptr;
+            if ( window )
+                gbmWindow = dynamic_cast< const GbmWindow* >( window->handle() );
+
+            if ( gbmWindow )
+                return eglResource( resource, gbmWindow );
+
+            return nullptr;
+        }
+
+        void* nativeResourceForContext(
+            const QByteArray& resource, QOpenGLContext* context ) override
+        {
+            const GbmContext* gbmContext = nullptr;
+            if ( context )
+                gbmContext = dynamic_cast< const GbmContext* >( context->handle() );
+
+            if ( gbmContext )
+            {
+                const auto rs = resource.toLower();
+
+                if ( rs == QByteArrayLiteral("egldisplay") )
+                    return gbmContext->eglDisplay();
+
+                if ( rs == QByteArrayLiteral("eglconfig") )
+                    return gbmContext->eglConfig();
+
+                if ( rs == QByteArrayLiteral("eglcontext") )
+                    return gbmContext->eglContext();
+            }
+
+            return nullptr;
+        }
+      private:
+        void* eglResource( const QByteArray& resource,
+            const GbmWindow* window = nullptr )
+        {
+            const auto rs = resource.toLower();
+
+            if ( rs == QByteArrayLiteral("egldisplay") )
+                return QGbm::eglDisplay();
+
+            if ( rs == QByteArrayLiteral("eglconfig") )
+                return QGbm::eglConfig();
+
+            if ( window )
+            {
+                if ( rs == QByteArrayLiteral("eglsurface") )
+                    return window->surface();
+            }
+
+            // what about exposing gbm_device, gbm_surface ?
+
+            return nullptr;
+        }
+    };
+
     class GbmIntegration : public QPlatformIntegration
     {
       public:
@@ -226,12 +296,10 @@ namespace
             QWindowSystemInterface::handleScreenAdded( screen, true );
         }
 
-#if QT_VERSION >= QT_VERSION_CHECK( 6, 7, 0 )
-        QPlatformNativeInterface *nativeInterface() const override
+        QPlatformNativeInterface* nativeInterface() const override
         {
             return &m_nativeInterface;
         }
-#endif
 
         void destroy() override
         {
@@ -294,10 +362,7 @@ namespace
 
       private:
         mutable QGenericUnixFontDatabase m_fontDatabase;
-#if QT_VERSION >= QT_VERSION_CHECK( 6, 7, 0 )
-        mutable QPlatformNativeInterface m_nativeInterface;
-#endif
-
+        mutable GbmNativeInterface m_nativeInterface;
         QPlatformInputContext* m_inputContext = nullptr;
     };
 }
